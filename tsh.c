@@ -213,6 +213,7 @@ int builtin_cmd(char **argv)
       return 1;
     }
     return 0;     /* not a builtin command */
+  }
 /* 
  * do_bgfg - Execute the builtin bg and fg commands
  */
@@ -253,7 +254,7 @@ void sigchld_handler(int sig)
     return;
 }
 
-}
+
 
 /* 
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
