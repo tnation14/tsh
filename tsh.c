@@ -202,7 +202,8 @@ int builtin_cmd(char **argv)
       exit(0); /* Replace with Signal call for SIGQUIT? */
     } else if (!strcmp(argv[0],"jobs")) {
       // List all jobs running in background
-      return 1;
+      execv("/bin/jobs",NULL);
+      //return 1;
     } else if (!strcmp(argv[0],"bg")) {
       // Check for PID or JID argument
       // Restart <job> by sending SIGCONT signal, runs job in background
