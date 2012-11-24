@@ -131,6 +131,7 @@ int main(int argc, char **argv)
     exit(0); /* control never reaches here */
 }
   
+  
 /* 
  * eval - Evaluate the command line that the user has just typed in
  * 
@@ -144,10 +145,46 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+    // cmdline is a pointer to the command line string (char array)
     char *argv[MAXARGS]; /* argv for execve() */
                          // call int bg = parseline(cmdline, argv);  
                          // to parse command line arguments into argv 
                          // that you can pass to execve
+    
+    pid_t pid;
+
+    /* Parse command line */
+    int bg = parseline(cmdline, argv); /* bg=1:bg; bg=0:fg */
+    if (argv[0] == NULL) {
+      return; /* Empty line - ignore it */
+    }
+
+
+    // If *argv is a built-in command, execute it immediately and return
+    if (!builtin_cmd(argv)) {
+      // Fork a child process which runs job
+      if ((pid = fork()) == 0) {
+        if (execve(argv[0], argv, environ) < 0) {
+          printf("%s: Command not found. \n", argv[0]);
+          exit(0);
+        }
+      } 
+      if (!bg) {
+        // Run process in foreground
+        // use waitpid to wait for child process to terminate
+        // proceed to next iteration upon termination of child process
+        int status;
+        if (waitpid(pid, &status, 0) < 0) {
+          unix_error("waitfg: waitpid error");
+        }
+      } 
+      else {
+        // Run process in background
+        // return to top of loop, await next command line entry
+        printf("[jid] (%d) %s", pid, cmdline);
+        
+      }
+    }
     return;
 }
 
@@ -157,9 +194,25 @@ void eval(char *cmdline)
  */
 int builtin_cmd(char **argv) 
 {
+    // if cmdline represents built-in command, execute it immediately
+    // else fork a child process and run the job in the context of the
+    // child (outside this function)
+    if (!(strcmp(argv[0],"quit"))) {
+      // Quit
+      exit(0); /* Replace with Signal call for SIGQUIT? */
+    } else if (!strcmp(argv[0],"jobs")) {
+      // List all jobs running in background
+      return 1;
+    } else if (!strcmp(argv[0],"bg")) {
+      // Check for PID or JID argument
+      // Restart <job> by sending SIGCONT signal, runs job in background
+      return 1;
+    } else if (!strcmp(argv[0],"fg")) {
+      // Check for PID of JID argument
+      // Restart <job> by sending SIGCONT signal, runs job in foreground
+      return 1;
+    }
     return 0;     /* not a builtin command */
-}
-
 /* 
  * do_bgfg - Execute the builtin bg and fg commands
  */
@@ -218,8 +271,8 @@ void sigint_handler(int sig)
     
   }
   
-  kill(get,sig);
-  exit(1);
+  kill(fgpid(jobs),sig);
+  return;
   }
  
     
@@ -240,7 +293,7 @@ void sigtstp_handler(int sig)
   if((pid = fork())==0){
     printf("Process %d killed with signal %d",fgpid(jobs),sig);
     kill(fgpid(jobs),sig);
-    return
+    return;
    }
  }
  

@@ -1,9 +1,7 @@
 /* 
  * tsh - A tiny shell program with job control
  * 
- * Zach Lockett-Streiff (zlocket1)
- * Taylor Nation (tnation14)
- *
+ * <Put your name and login ID here>
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +33,7 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 
 /* Function prototypes */
 
-/* Here are the functions that you will implement */
+/* Hrere are the functions that you will implement */
 void eval(char *cmdline);
 int builtin_cmd(char **argv);
 void do_bgfg(char **argv);
@@ -133,6 +131,7 @@ int main(int argc, char **argv)
     exit(0); /* control never reaches here */
 }
   
+  
 /* 
  * eval - Evaluate the command line that the user has just typed in
  * 
@@ -214,8 +213,6 @@ int builtin_cmd(char **argv)
       return 1;
     }
     return 0;     /* not a builtin command */
-}
-
 /* 
  * do_bgfg - Execute the builtin bg and fg commands
  */
@@ -229,7 +226,6 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    // while pid is a foreground process
     return;
 }
 
@@ -246,7 +242,17 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+    pid_t pid;
+
+    while((pid = waitpid(-1,NULL,0))>0){
+      printf("Reaped child %d\n", (int)pid);
+      if(errno != ECHILD){
+        unix_error("waitpid error");
+      }
+    }
     return;
+}
+
 }
 
 /* 
@@ -254,9 +260,22 @@ void sigchld_handler(int sig)
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.  
  */
-void sigint_handler(int sig) 
+void sigint_handler(int sig)
 {
-    return;
+  if(!fgpid(jobs)){
+    printf("\nNo jobs in the foreground! \n");
+  }else{
+  pid_t pid;
+  if((pid = fork())==0){
+    pause();
+    
+  }
+  
+  kill(fgpid(jobs),sig);
+  return;
+  }
+ 
+    
 }
 
 /*
@@ -266,7 +285,18 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+  if(!fgpid(jobs)){
+    printf("\nNo jobs in the foreground! \n");
     return;
+  }else{
+  pid_t pid;
+  if((pid = fork())==0){
+    printf("Process %d killed with signal %d",fgpid(jobs),sig);
+    kill(fgpid(jobs),sig);
+    return;
+   }
+ }
+ 
 }
 
 /*********************
