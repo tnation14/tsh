@@ -238,6 +238,15 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+
+  //if job is in foreground
+  //  kill it (sigint)
+  //  send sigcont
+  //  update job status in list 
+  //Else (it's a child)
+  //  stop process
+  //  create new foreground procers
+ 
     return;
 }
 
@@ -251,7 +260,8 @@ void waitfg(pid_t pid)
       printf("getjobspid returned NULL.\n");
       return;
     }
-    while (getjobpid(jobs,pid)->state == FG) {
+    while (getjobpid(jobs,pid)->state == FG && 
+        getjobpid(jobs,pid)->state == FG) {
       printf("while loop in waitfg\n");
       sleep(2);
     }
