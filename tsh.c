@@ -166,8 +166,10 @@ void eval(char *cmdline)
     // If argv is a built-in command, execute it immediately and return
     if (!builtin_cmd(argv)) {
       // Fork a child process which runs job
+
       sigemptyset(&mask);
       sigaddset(&mask, SIGCHLD);
+
       sigprocmask(SIG_BLOCK, &mask, NULL);
       if ((pid = fork()) == 0) {
         // This is the child process
@@ -177,7 +179,7 @@ void eval(char *cmdline)
           exit(0);
         } 
       }
-
+      sigprocmask(SIG_UNBLOCK, &mask, NULL);
       if (!bg) {
       /* This is the parent process */
         // Run process in foreground
@@ -187,7 +189,6 @@ void eval(char *cmdline)
         
         printf("Run in foreground\n");
         addjob(jobs, pid, FG, cmdline);
-        sigprocmask(SIG_UNBLOCK, &mask, NULL);
         waitfg(pid);
       } 
       else {
@@ -238,15 +239,12 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    // If given jid, get pid from jid
+    // If job is already in bg, don't necessarily need to do anything
+    // If bringing job into fg, change state in joblist, restart in fg with SIGCONT
+    // If sending job to the background from fg, stop with SIGSTP, start it again with SIGCONT
+    //   ...and also change state in job struct
 
-  //if job is in foreground
-  //  kill it (sigint)
-  //  send sigcont
-  //  update job status in list 
-  //Else (it's a child)
-  //  stop process
-  //  create new foreground procers
- 
     return;
 }
 
@@ -255,13 +253,23 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    // is the job still in joblist? If not, return
+    // if job is still there, but in bg: don't have to wait any longer
+    // if neither, return
     
+
     if (getjobpid(jobs,pid) == NULL) {
       printf("getjobspid returned NULL.\n");
       return;
     }
-    while (getjobpid(jobs,pid)->state == FG && 
-        getjobpid(jobs,pid)->state == FG) {
+
+    // I think this if statement can be deleted since we're already checking for it in the while loop
+    //if (getjobpid(jobs,pid) == NULL) {
+    //  printf("the requested job is not in the joblist. returning.\n");
+    //  return;
+    //}
+   
+    while ((getjobpid(jobs,pid) != NULL) && (getjobpid(jobs,pid)->state == FG)) {
       printf("while loop in waitfg\n");
       sleep(2);
     }
@@ -281,14 +289,28 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+    int status;
     pid_t pid;
-    
-    while((pid = waitpid(-1,NULL,0))>0) {
-      printf("Reaped child %d\n", (int)pid);
-      //listjobs(jobs);
+    // Check separately for stopped and terminated jobs
+    // Check for terminated children without waiting for them to terminate
+    while((pid = waitpid(-1,&status,WNOHANG)) > 0) {
+      if (WIFEXITED(status)) {
+        printf("child %d terminated normally with exit status %d\n",
+            pid, WEXITSTATUS(status));
+        printf("reaped child %d\n", (int)pid);
+      } else {
+        printf("child %d terminated abnormally\n", pid);
+      }
+      if (WIFSTOPPED(status)) {
+        printf("child %d causing return is stopped with signal %d.\n",pid, WSTOPSIG(status));
+      } else {
+        printf("child %d causing return is not stopped.\n",pid);
+      }
+      listjobs(jobs);
+      // How to check if jobs list is empty?
       deletejob(jobs,pid);
     }
-    if(errno != ECHILD) {
+    if (errno != ECHILD) {
       unix_error("waitpid error");
     }
     
@@ -310,7 +332,6 @@ void sigint_handler(int sig)
       if((pid = fork())==0){
         //pause();
       }
-      deletejob(jobs, pid);
       kill(fgpid(jobs),sig);
   }
   return; 
