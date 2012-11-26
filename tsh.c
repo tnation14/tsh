@@ -167,7 +167,7 @@ void eval(char *cmdline)
     if (!builtin_cmd(argv)) {
       // Fork a child process which runs job
       sigemptyset(&mask);
-      sigaddset(&mask, SIGCHILD);
+      sigaddset(&mask, SIGCHLD);
       sigprocmask(SIG_BLOCK, &mask, NULL);
       if ((pid = fork()) == 0) {
         // This is the child process
