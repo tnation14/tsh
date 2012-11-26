@@ -251,10 +251,13 @@ void waitfg(pid_t pid)
     // is the job still in joblist? If not, return
     // if job is still there, but in bg: don't have to wait any longer
     // if neither, return
-    if (getjobpid(jobs,pid) == NULL) {
-      printf("the requested job is not in the joblist. returning.\n");
-      return;
-    }
+    
+    // I think this if statement can be deleted since we're already checking for it in the while loop
+    //if (getjobpid(jobs,pid) == NULL) {
+    //  printf("the requested job is not in the joblist. returning.\n");
+    //  return;
+    //}
+   
     while ((getjobpid(jobs,pid) != NULL) && (getjobpid(jobs,pid)->state == FG)) {
       printf("while loop in waitfg\n");
       sleep(2);
