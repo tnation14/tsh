@@ -12,3 +12,4 @@ TSTP
 
 /bin/echo tsh> jobs
 jobs
+quit
