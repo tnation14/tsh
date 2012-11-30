@@ -64,6 +64,8 @@ void app_error(char *msg);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 void listbgjobs(struct job_t *jobs);
+int pidexist(pid_t pid, struct job_t *jobs);
+
 /*
  * main - The shell's main routine 
  */
@@ -178,6 +180,7 @@ void eval(char *cmdline)
       if ((pid = fork()) == 0) {
         // This is the child process
         sigprocmask(SIG_UNBLOCK, &mask, NULL);
+        setpgid(0,0);
         if (execve(argv[0], argv, environ) < 0) {
           printf("%s: Command not found. \n", argv[0]);
         } 
@@ -225,15 +228,13 @@ int builtin_cmd(char **argv)
     // else fork a child process and run the job in the context of the
     // child (outside this function)
     if (!(strcmp(argv[0],"quit"))) {
-          
-          exit(0); 
+      exit(0); 
     } else if (!strcmp(argv[0],"jobs")) {
           // List all jobs running in background
           listjobs(jobs);
           return 1;
     } else if (!strcmp(argv[0],"bg")) {
           // Check for PID or JID argument
-          printf("bg called\n");
           do_bgfg(argv);
           // Restart <job> by sending SIGCONT signal, runs job in background
           return 1;
@@ -272,26 +273,36 @@ void do_bgfg(char **argv)
       }
       temp[length-1] = '\0';
       int temp2;
-      temp2 = atoi(temp); 
+      temp2 = atoi(temp);
+      if(temp2 > maxjid(jobs)||temp2<=0){
+        printf("%s: No such job.\n",argv[1]);
+        return;
+      }
       currentjob = getjobjid(jobs,temp2);
       pid_1 = currentjob->pid;
-      printf("pid: %d\ntemp2:%d\n",pid_1,temp2);
+      
    }else{
+      if(!pidexist(atoi(argv[1]),jobs)){
+        printf("(%d): no such process\n",atoi(argv[1]));
+        return;
+      }
       currentjob = getjobpid(jobs,atoi(argv[1]));
       printf("%d\n",currentjob->pid);
+ 
    }
 
     if(currentjob->state==BG && !strcmp("bg",argv[0])){
+      kill(currentjob->pid*-1,SIGCONT);
       return;      
     } else if(!strcmp("fg",argv[0])){
       
-      kill(currentjob->pid,SIGCONT);
+      kill(currentjob->pid*-1,SIGCONT);
       currentjob->state = FG;
       waitfg(currentjob->pid);
     } else if(!strcmp("bg",argv[0])){
       currentjob->state=BG;
-      kill(currentjob->pid,SIGSTOP);
-      kill(currentjob->pid,SIGCONT);
+      kill(currentjob->pid*-1,SIGSTOP);
+      kill(currentjob->pid*-1,SIGCONT);
     } 
     
 
@@ -314,15 +325,10 @@ void waitfg(pid_t pid)
       return;
     }
 
-    // I think this if statement can be deleted since we're already checking for it in the while loop
-    //if (getjobpid(jobs,pid) == NULL) {
-    //  printf("the requested job is not in the joblist. returning.\n");
-    //  return;
-    //}
    
     while ((getjobpid(jobs,pid) != NULL)&&(getjobpid(jobs,pid)->state == FG)) {
-     /* printf("while loop in waitfg, current job is %d, state is %d\n",
-          pid,getjobpid(jobs,pid)->state);*/
+      /*printf("while loop in waitfg, current job is %d, state is %d\n",
+        pid,getjobpid(jobs,pid)->state);*/
       sleep(2);
     }
     return;
@@ -363,14 +369,24 @@ void sigchld_handler(int sig)
         printf("child %d causing return is not stopped.\n",pid);
       }
       */
+      //printf("status: %d\n",status);
+      if(status == SIGINT){
+        //printf("Child died from sigint\n");
+        deletejob(jobs,pid);
+      }else if(status == SIGSTOP){
+        //printf("Child died from sigstop\n");
+        getjobpid(jobs,pid)->state = status;
+      }else if(status == 0){
+        //printf("Job terminated\n");
+        deletejob(jobs,pid);
+      }
 
-      
-       //deletejob(jobs,pid);
       }
  /* if(errno != ECHILD){
     unix_error("waitpid error");
   }
   */
+   //printf("exiting sigchild\n");
  
   return;
 }
@@ -389,8 +405,9 @@ void sigint_handler(int sig)
     }else{
     
        
-      kill(pid,sig);
+      kill(pid*-1,sig);
       printf("Job [%d] (%d) stopped with signal %d\n",pid2jid(pid),pid,sig);
+      
     }
  
 
@@ -407,9 +424,11 @@ void sigtstp_handler(int sig)
     if (pid==0) {     
       return;
     }else{      
-      getjobpid(jobs,pid)->state = ST;
-      kill(pid,sig);
+    
+      kill(pid*-1,sig);
+      getjobpid(jobs,pid)->state = ST; 
       printf("Job [%d] (%d) stopped with signal %d\n",pid2jid(pid),pid,sig);
+      return;
     }
  
 
@@ -646,3 +665,13 @@ void listbgjobs(struct job_t *jobs)
     }
 }
 
+int pidexist(pid_t pid, struct job_t *jobs)
+{
+  int i;
+  for(i = 0; i < MAXJOBS; i++){
+    if(jobs[i].pid == pid){
+      return 1;
+    }
+  }
+  return 0;
+}
