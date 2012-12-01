@@ -302,22 +302,23 @@ void do_bgfg(char **argv)
    }else{
 
       temp2 = atoi(argv[1]);    
-      /*if(!temp2){
-        printf("%s: argument must be a PID or %%jobid\n",argv[0]);
-        return;
-      } else if(!pidexist(temp2,jobs)){
-        printf("(%d): no such process\n",atoi(argv[1]));
-        return;
-      }*/
    }
      // Error checking to see if the JID/PID actually exists.
-     //
-      printf("maxjid: %d, !pidexist: %d, temp2:%d\n",maxjid(jobs),
-          !pidexist(temp2,jobs), temp2);
-      if(temp2 > maxjid(jobs)||temp2<0||pidexist(temp2,jobs)==0){
+     // If it's a JID, check to see if it's in the range of the job list
+      if(is_jid && (temp2 > maxjid(jobs)||temp2<0)){
         printf("%s: No such job.\n",argv[1]);
         return;
-      } else if(!temp2){
+      }
+    // If it's a PID, make sure it is a PID that actually exists.  
+
+      else if( (!is_jid)&&(pidexist(temp2,jobs)==0)){
+        printf("%s: No such job.\n",argv[1]);
+      }
+    // When we do atoi, c turns any characters that aren't ascii
+    // equivalents of integers into 0's. So we can use this
+    // to check to see if a character was passed into fg/bg instead
+    // of an int.
+      else if(!temp2){
         printf("%s: argument must be a PID or %%jobid\n",argv[0]);
         return;
       }
@@ -419,7 +420,7 @@ void sigchld_handler(int sig)
         deletejob(jobs,pid);
       }
 
-      }
+    }
 
  
   return;
